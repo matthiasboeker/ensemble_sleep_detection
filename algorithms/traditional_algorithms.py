@@ -112,6 +112,23 @@ def calculate_cole_kripke(signal, epoch_length):
     return pd.Series(sleep_wake, index=signal.index)
 
 
+def calculate_cole_kripke_30sec(signal, epoch_length):
+    # Applying weights to each epoch and considering lead and lag
+    weighted_activity = (
+            0.0001 * (50 * signal.shift(4, fill_value=0) +
+                      30 * signal.shift(3, fill_value=0) +
+                      14 * signal.shift(2, fill_value=0) +
+                      28 * signal.shift(1, fill_value=0) +
+                      121 * signal +
+                      8 * signal.shift(-1, fill_value=0) +
+                      50 * signal.shift(-2, fill_value=0))
+    )
+
+    # Determine sleep-wake based on weighted activity
+    sleep_wake = weighted_activity.apply(lambda x: 'S' if x < 1 else 'W')
+
+    return pd.Series(sleep_wake, index=signal.index)
+
 def sazonova_algorithm(activity_counts, activity_threshold=40, window_size=11, wake_threshold=2):
     """
     Apply the Sazonova sleep-wake algorithm.

@@ -3,7 +3,7 @@ import torch.nn as nn
 
 
 class BayesianNet(nn.Module):
-    def __init__(self, window_size: int, dropout: float):
+    def __init__(self, window_size: int, dropout: float, temperature: float):
         super(BayesianNet, self).__init__()
         self.window_size = window_size
         self.dropout = dropout
@@ -11,37 +11,22 @@ class BayesianNet(nn.Module):
         self.dropout = nn.Dropout(p=dropout)
         self.fc2 = nn.Linear(128, 64)
         self.fc3 = nn.Linear(64, 1)
+        self.temperature = temperature
 
     def forward(self, x):
         x = torch.relu(self.fc1(x))
         x = self.dropout(x)
         x = torch.relu(self.fc2(x))
-        return torch.sigmoid(self.fc3(x))
-
-
-class BayesianNetRanked(nn.Module):
-    def __init__(self, window_size: int, dropout: float):
-        super(BayesianNetRanked, self).__init__()
-        self.window_size = window_size
-        self.dropout = dropout
-        self.fc1 = nn.Linear(window_size, 128)
-        self.dropout = nn.Dropout(p=dropout)
-        self.fc2 = nn.Linear(128, 64)
-        self.fc3 = nn.Linear(64, 5)
-
-    def forward(self, x):
-        x = torch.relu(self.fc1(x))
-        x = self.dropout(x)
-        x = torch.relu(self.fc2(x))
-        return self.fc3(x)
+        return torch.sigmoid(self.fc3(x) / self.temperature)
 
 
 class BayesianCNN(nn.Module):
-    def __init__(self, window_size: int, dropout: float):
+    def __init__(self, window_size: int, dropout: float, temperature: float):
         super(BayesianCNN, self).__init__()
 
         self.window_size = window_size
         self.dropout_rate = dropout
+        self.temperature = temperature
 
         # Convolutional layers
         self.conv1 = nn.Conv1d(1, 32, kernel_size=5, stride=1,
@@ -71,16 +56,17 @@ class BayesianCNN(nn.Module):
         x = self.dropout(x)
         x = torch.relu(self.fc2(x))
 
-        return torch.sigmoid(self.fc3(x))
+        return torch.sigmoid(self.fc3(x)/self.temperature)
 
 
 class BayesianLSTM(nn.Module):
-    def __init__(self, input_dim: int, hidden_dim: int, dropout: float, num_layers: int):
+    def __init__(self, input_dim: int, hidden_dim: int, dropout: float, num_layers: int, temperature: float):
         super(BayesianLSTM, self).__init__()
 
         self.input_dim = input_dim
         self.hidden_dim = hidden_dim
         self.num_layers = num_layers
+        self.temperature = temperature
 
         # LSTM layer
         self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers, batch_first=True,
@@ -104,4 +90,4 @@ class BayesianLSTM(nn.Module):
         x = self.dropout(x)
         x = torch.relu(self.fc2(x))
 
-        return torch.sigmoid(self.fc3(x))
+        return torch.sigmoid(self.fc3(x)/ self.temperature)

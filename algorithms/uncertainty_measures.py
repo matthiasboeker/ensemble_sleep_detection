@@ -54,7 +54,7 @@ def compute_ece(predicted, target, bin_boundaries):
     #bin_indices = torch.bucketize(predicted, bin_boundaries)
     bin_indices = torch.bucketize(predicted, torch.tensor(bin_boundaries))
     bin_sums = torch.bincount(bin_indices, weights=predicted.detach().float())
-    bin_true = torch.bincount(bin_indices, weights=torch.tensor(target).float())
+    bin_true = torch.bincount(bin_indices, weights=torch.tensor(target.to_numpy()).float())
     bin_counts = torch.bincount(bin_indices).float()
 
     bin_means = bin_sums / bin_counts

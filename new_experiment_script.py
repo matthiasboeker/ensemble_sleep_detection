@@ -115,7 +115,6 @@ def train(model, optimizer, criterion, X, Y, epochs, batch_size, patience, min_d
             optimizer.step()
 
             running_loss += loss.item() * inputs.size(0)
-
         average_train_loss = running_loss / len(train_loader.dataset)
 
         model.eval()
@@ -208,7 +207,7 @@ def run_testing(X_test, Y_test, gt, classifier_name, classifier, samples):
     results["f1"] = f1_score(gt, hard_predictions)
     results["acc"] = balanced_accuracy_score(gt, hard_predictions)
     results["brier"] = brier_score_loss(gt, mean_predictions)
-    #results["ece"] = compute_ece(mean_predictions, gt, [0.25, 0.5, 0.75, 1.0]).cpu().tolist()
+    results["ece"] = compute_ece(mean_predictions, gt, [0.25, 0.5, 0.75, 1.0]).cpu().tolist()
     results["entropy"] = overall_entropy(mean_predictions).tolist()
     results["variance"] = ar_covariance_estimation(predictions).cpu().numpy().tolist()
     results["name"] = classifier_name
@@ -220,7 +219,7 @@ def main():
     path_to_save_res = Path(__file__).parent / "data"
 
     window_size = 20
-    models = {"NN": BayesianNet(window_size=window_size, dropout=0.5),
+    models = {"NN": BayesianNet(window_size=window_size, dropout=0.5, temperature=2),
               #"LSTM": BayesianLSTM(input_dim=1, hidden_dim=50, dropout=0.5, num_layers=2),
               #"CNN": BayesianCNN(window_size=window_size, dropout=0.5),
               }
@@ -260,7 +259,7 @@ def main():
                     "test": Y_test_hard
                 },
                 "Soft": {
-                    "loss_function": SoftCrossEntropy(),
+                    "loss_function": SoftCrossEntropy(gamma=1),
                     "train": Y_train_soft,
                     "test": Y_test_soft
                 }
@@ -287,14 +286,15 @@ def main():
                 results[ref_name] = []
                 print(f"________________________________{type_name}________________________________")
                 for name, model in models.items():
-                    optimizer = optim.Adam(model.parameters(), lr=0.00001)
+                    optimizer = torch.optim.SGD(model.parameters(), lr=0.00001, weight_decay=0.0001)
                     criterion = type["loss_function"]
 
                     run_training(X_train, type["train"], name, model, criterion, optimizer, epochs=200, batch_size=512, patience=20, min_delta=0.001)
                     metrics, _ = run_testing(X_test, type["test"], ground_truth, name, model, samples)
                     results[ref_name] = metrics
+                    print(metrics)
                     update_aggregated_metrics(aggregated_metrics, ref_name, metrics)
-        if (i + 1) % 20 == 0:
+        if (i + 1) % 10 == 0:
             metrics_intermediate = calculate_mean_metrics(aggregated_metrics)
             write_dict_to_json(metrics_intermediate, path_to_save_res / "intermediate_results.json")
             trad_metrics_intermediate = calculate_mean_metrics(trad_aggregated)

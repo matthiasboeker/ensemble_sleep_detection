@@ -20,6 +20,21 @@ def brier_score(predicted, target):
     return torch.mean((predicted - target) ** 2)
 
 
+class BinaryMSELoss(nn.Module):
+    def __init__(self):
+        super(BinaryMSELoss, self).__init__()
+
+    def forward(self, predicted, target):
+        """
+        Args:
+            predicted (torch.Tensor): Tensor of predicted probabilities for the positive class.
+            target (torch.Tensor): True labels or probabilities (0 or 1 for binary classification, but can be in between for soft labels).
+        Returns:
+            torch.Tensor: The Mean Squared Error loss.
+        """
+        return F.mse_loss(predicted, target)
+    
+
 class BrierScoreLoss(nn.Module):
     def __init__(self):
         super(BrierScoreLoss, self).__init__()
@@ -36,13 +51,14 @@ class BrierScoreLoss(nn.Module):
 
 
 class SoftCrossEntropy(nn.Module):
-    def __init__(self):
+    def __init__(self, gamma):
         super(SoftCrossEntropy, self).__init__()
+        self.gamma = gamma 
 
     def forward(self, predicted, target):
         s = torch.column_stack((1 - predicted, predicted))
         c = torch.column_stack((1 - target, target))
-        logprobs = torch.log(c)
+        logprobs = torch.log(c)**self.gamma
         return -(s * logprobs).sum() / predicted.shape[0]
 
 
@@ -61,6 +77,7 @@ class SupersetBrierScoreLoss(nn.Module):
         """
         superset_brier = (target - predicted[:, None])**2
         return torch.mean(superset_brier.mean(dim=1))
+
 
 
 class SupersetCrossEntropy(nn.Module):
