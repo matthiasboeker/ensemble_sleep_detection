@@ -202,6 +202,11 @@ def run_testing(X_test, Y_test, gt, classifier_name, classifier, samples):
 
     mean_predictions = predictions.mean(axis=0)
     hard_predictions = torch.round(mean_predictions, decimals=0)
+    #plt.plot(Y_test, label="ensemble")
+    #plt.plot(hard_predictions, label="hard")
+    #plt.plot(gt, label="gt")
+    #plt.legend()
+    plt.show()
     results["mcc"] = matthews_corrcoef(gt, hard_predictions)
     results["kappa"] = cohen_kappa_score(gt, hard_predictions)
     results["f1"] = f1_score(gt, hard_predictions)
@@ -226,7 +231,7 @@ def main():
     file_names = get_acc_files(path_to_data)
     aggregated_metrics = {}
     trad_aggregated = {}
-    for i, file_name in enumerate(file_names[150:]):
+    for i, file_name in enumerate(file_names):
         print(f"Processing: {file_name} Nr. {i}")
         acc_file = pd.read_csv(path_to_data / file_name, engine="python")
         df = create_dataset(acc_file)
@@ -248,7 +253,8 @@ def main():
         update_aggregated_metrics(trad_aggregated, "Sazonova", get_metrics(ground_truth, test["Sazonova"], "Sazonova", window_size))
         update_aggregated_metrics(trad_aggregated, "Oakley", get_metrics(ground_truth, test["Oakley"], "Oakley", window_size))
         update_aggregated_metrics(trad_aggregated, "Ensemble", get_metrics(ground_truth, Y_test_hard, "Ensemble", window_size))
-
+        print("______________________________ENSEMBLE______________________________")
+        print(get_metrics(ground_truth, Y_test_hard, "Ensemble", window_size))
         X_train, Y_train_hard, Y_train_soft, Y_train_superset = transform_to_xy_tensor(X_train, Y_train_hard.values, Y_train_soft.values, Y_train_superset.values, window_size)
         X_test, Y_test_hard, Y_test_soft, Y_test_superset = transform_to_xy_tensor(X_test, Y_test_hard.values, Y_test_soft.values, Y_test_superset.values, window_size)
         experiments = {
@@ -292,6 +298,7 @@ def main():
                     run_training(X_train, type["train"], name, model, criterion, optimizer, epochs=200, batch_size=512, patience=20, min_delta=0.001)
                     metrics, _ = run_testing(X_test, type["test"], ground_truth, name, model, samples)
                     results[ref_name] = metrics
+                    print("______________________________NN______________________________")
                     print(metrics)
                     update_aggregated_metrics(aggregated_metrics, ref_name, metrics)
         if (i + 1) % 10 == 0:
