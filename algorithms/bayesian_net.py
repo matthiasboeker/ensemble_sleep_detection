@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 
-class BayesianNet(nn.Module):
+class BayesianNet_(nn.Module):
     def __init__(self, window_size: int, dropout: float, temperature: float):
         super(BayesianNet, self).__init__()
         self.window_size = window_size
@@ -18,6 +18,41 @@ class BayesianNet(nn.Module):
         x = self.dropout(x)
         x = torch.relu(self.fc2(x))
         return torch.sigmoid(self.fc3(x) / self.temperature)
+
+
+class BayesianNet(nn.Module):
+    def __init__(self, window_size: int, dropout: float, temperature: float):
+        super(BayesianNet, self).__init__()
+        self.window_size = window_size
+        self.dropout = dropout
+        self.temperature = temperature
+
+        self.fc1 = nn.Linear(window_size, 256)  # Increased units
+        self.bn1 = nn.BatchNorm1d(256)  # Batch normalization
+        self.dropout1 = nn.Dropout(p=dropout)
+
+        self.fc2 = nn.Linear(256, 128)
+        self.bn2 = nn.BatchNorm1d(128)
+        self.dropout2 = nn.Dropout(p=dropout)
+
+        self.fc3 = nn.Linear(128, 64)
+        self.bn3 = nn.BatchNorm1d(64)
+        self.dropout3 = nn.Dropout(p=dropout)
+
+        self.fc4 = nn.Linear(64, 1)
+
+    def forward(self, x):
+        x = torch.relu(self.bn1(self.fc1(x)))
+        x = self.dropout1(x)
+
+        x = torch.relu(self.bn2(self.fc2(x)))
+        x = self.dropout2(x)
+
+        x = torch.relu(self.bn3(self.fc3(x)))
+        x = self.dropout3(x)
+
+        return torch.sigmoid(self.fc4(x) / self.temperature)
+
 
 
 class BayesianCNN(nn.Module):
