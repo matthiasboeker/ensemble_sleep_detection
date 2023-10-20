@@ -10,7 +10,7 @@ import json
 import torch.nn as nn
 
 from sklearn.metrics import matthews_corrcoef, cohen_kappa_score, f1_score, balanced_accuracy_score, \
-    brier_score_loss
+    brier_score_loss, confusion_matrix
 from algorithms.bayesian_net import BayesianNet, BayesianCNN, BayesianLSTM
 from sklearn.model_selection import train_test_split
 from algorithms.uncertainty_measures import ar_covariance_estimation, compute_ece
@@ -81,11 +81,20 @@ def transform_to_xy_tensor(X, labels_hard, labels_soft, labels_superset, window_
     Y_soft = np.array(Y_soft)
     Y_superset = np.array(Y_superset)
 
-    return torch.tensor(X_data).float(), torch.tensor(Y_hard).float(), torch.tensor(Y_soft).float(), torch.tensor(Y_superset).float()
+    return torch.tensor(X_data).float().cuda(), torch.tensor(Y_hard).float().cuda(), torch.tensor(Y_soft).float().cuda(), torch.tensor(Y_superset).float().cuda()
 
 
 def get_metrics(gt, hard_predictions, name,  window_size):
     results = {}
+    tn, fp, fn, tp = confusion_matrix(gt, hard_predictions[window_size:]).ravel()
+
+    # Calculating sensitivity and specificity
+    sensitivity = tp / (tp + fn)
+    specificity = tn / (tn + fp)
+
+    # Adding to your results
+    results["sensitivity"] = sensitivity
+    results["specificity"] = specificity
     results["mcc"] = matthews_corrcoef(gt, hard_predictions[window_size:])
     results["kappa"] = cohen_kappa_score(gt, hard_predictions[window_size:])
     results["f1"] = f1_score(gt, hard_predictions[window_size:])
@@ -108,6 +117,7 @@ def train(model, optimizer, criterion, X, Y, epochs, batch_size, patience, min_d
         model.train()
         running_loss = 0.0
         for inputs, labels in train_loader:
+            inputs, labels = inputs.cuda(), labels.cuda()
             optimizer.zero_grad()
             outputs = model(inputs).squeeze()
             loss = criterion(outputs, labels)
@@ -200,13 +210,17 @@ def run_testing(X_test, Y_test, gt, classifier_name, classifier, samples):
             predictions.append(outputs.squeeze())
     predictions = torch.stack(predictions)
 
-    mean_predictions = predictions.mean(axis=0)
+    mean_predictions = predictions.mean(axis=0).cpu()
     hard_predictions = torch.round(mean_predictions, decimals=0)
-    #plt.plot(Y_test, label="ensemble")
-    #plt.plot(hard_predictions, label="hard")
-    #plt.plot(gt, label="gt")
-    #plt.legend()
-    plt.show()
+    tn, fp, fn, tp = confusion_matrix(gt, hard_predictions).ravel()
+
+    # Calculating sensitivity and specificity
+    sensitivity = tp / (tp + fn)
+    specificity = tn / (tn + fp)
+
+    # Adding to your results
+    results["sensitivity"] = sensitivity
+    results["specificity"] = specificity
     results["mcc"] = matthews_corrcoef(gt, hard_predictions)
     results["kappa"] = cohen_kappa_score(gt, hard_predictions)
     results["f1"] = f1_score(gt, hard_predictions)
@@ -224,9 +238,9 @@ def main():
     path_to_save_res = Path(__file__).parent / "data"
 
     window_size = 20
-    models = {"NN": BayesianNet(window_size=window_size, dropout=0.5, temperature=2),
-              #"LSTM": BayesianLSTM(input_dim=1, hidden_dim=50, dropout=0.5, num_layers=2),
-              #"CNN": BayesianCNN(window_size=window_size, dropout=0.5),
+    models = {#"NN": BayesianNet(window_size=window_size, dropout=0.5, temperature=2).cuda(),
+              "LSTM": BayesianLSTM(input_dim=1, hidden_dim=25, dropout=0.5, num_layers=2, temperature=2).cuda(),
+              #"CNN": BayesianCNN(window_size=window_size, dropout=0.5, temperature=2).cuda(),
               }
     file_names = get_acc_files(path_to_data)
     aggregated_metrics = {}
@@ -235,9 +249,12 @@ def main():
         print(f"Processing: {file_name} Nr. {i}")
         acc_file = pd.read_csv(path_to_data / file_name, engine="python")
         df = create_dataset(acc_file)
-        test = df.loc[:df["ground_truth"].replace(0, pd.NA).last_valid_index()+2*60*6,:]
+        last_index = df["ground_truth"].replace(0, pd.NA).last_valid_index()
+        if last_index is None:
+            continue
+        test = df.loc[:last_index+2*60*6,:]
         ground_truth = test.ground_truth[window_size:].apply(lambda x: 1 if x > 0 else 0)
-        train = df.loc[df["ground_truth"].replace(0, pd.NA).last_valid_index()+2*60*6:,:]
+        train = df.loc[last_index+2*60*6:,:]
         X_train = normalise(train["activity"].values)
         X_test = normalise(test["activity"].values)
         epsilon = 1e-5
